@@ -211,5 +211,6 @@ experimental_get_query_params = _get_query_params
 experimental_set_query_params = _set_query_params
 experimental_show = _show
 experimental_rerun = _rerun
+experimental_data_editor = _main.experimental_data_editor
 
 connection = _connection
