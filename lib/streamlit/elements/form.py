@@ -87,7 +87,7 @@ def is_in_form(dg: DeltaGenerator) -> bool:
     return current_form_id(dg) != ""
 
 
-def _build_duplicate_form_message(user_key: str | None = None) -> str:
+def build_duplicate_form_message(user_key: str | None = None) -> str:
     if user_key is not None:
         message = textwrap.dedent(
             f"""
@@ -112,6 +112,29 @@ def _build_duplicate_form_message(user_key: str | None = None) -> str:
         )
 
     return message.strip("\n")
+
+
+def build_form_id(dg: DeltaGenerator, key: str) -> str:
+    """Builds form id, based on key if given, first ensuring session state and nested forms rules."""
+    # Import this here to avoid circular imports.
+    from streamlit.elements.utils import check_session_state_rules
+
+    if is_in_form(dg):
+        raise StreamlitAPIException("Forms cannot be nested in other forms.")
+
+    check_session_state_rules(default_value=None, key=key, writes_allowed=False)
+
+    # A form is uniquely identified by its key.
+    form_id = key
+
+    ctx = get_script_run_ctx()
+    if ctx is not None:
+        new_form_id = form_id not in ctx.form_ids_this_run
+        if new_form_id:
+            ctx.form_ids_this_run.add(form_id)
+        else:
+            raise StreamlitAPIException(build_duplicate_form_message(key))
+    return form_id
 
 
 class FormMixin:
@@ -179,24 +202,7 @@ class FormMixin:
         >>> form.form_submit_button("Submit")
 
         """
-        # Import this here to avoid circular imports.
-        from streamlit.elements.utils import check_session_state_rules
-
-        if is_in_form(self.dg):
-            raise StreamlitAPIException("Forms cannot be nested in other forms.")
-
-        check_session_state_rules(default_value=None, key=key, writes_allowed=False)
-
-        # A form is uniquely identified by its key.
-        form_id = key
-
-        ctx = get_script_run_ctx()
-        if ctx is not None:
-            new_form_id = form_id not in ctx.form_ids_this_run
-            if new_form_id:
-                ctx.form_ids_this_run.add(form_id)
-            else:
-                raise StreamlitAPIException(_build_duplicate_form_message(key))
+        form_id = build_form_id(self.dg, key)
 
         block_proto = Block_pb2.Block()
         block_proto.form.form_id = form_id
